@@ -3,9 +3,8 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
-// Импортируем наш основной CSS-файл.
-// Теперь стили будут находиться здесь, а не в классах Tailwind.
-import './index.css';
+// ВНИМАНИЕ: Импорт './index.css' должен быть только в файле main.jsx, а не здесь.
+// Если вы видите эту строку в App.jsx, пожалуйста, удалите ее.
 
 function App() {
     const [db, setDb] = useState(null);
@@ -15,7 +14,7 @@ function App() {
     const [productName, setProductName] = useState('');
     const [storeName, setStoreName] = useState('');
     const [price, setPrice] = useState('');
-    const [purchaseDate, setPurchaseDate] = new Date().toISOString().split('T')[0]; // Default to today's date (YYYY-MM-DD)
+    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]); // Default to today's date (YYYY-MM-DD)
     const [quantity, setQuantity] = useState('');
     const [unit, setUnit] = useState('');
     const [category, setCategory] = useState(''); // New state for category
@@ -28,7 +27,7 @@ function App() {
     const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
     const [message, setMessage] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [productToDelete, setProductToDelete] = useState(null);
+    const [productToDelete, setProductToDelete] = useState(null); // Исправлено: useState(null) вместо = null;
 
     // Authentication states
     const [email, setEmail] = useState('');
@@ -349,7 +348,7 @@ function App() {
             const chatHistory = [];
             chatHistory.push({ role: "user", parts: [{ text: prompt }] });
             const payload = { contents: chatHistory };
-            const apiKey = ""; // Canvas will provide this at runtime, but for standalone, it's part of firebaseConfig
+            const apiKey = "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo"; // Вставьте ваш API-ключ Gemini здесь
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
@@ -376,6 +375,63 @@ function App() {
             setIsLoadingAnalysis(false);
         }
     }, [filteredProducts]);
+
+    // Function to handle CSV export
+    const handleExportCsv = () => {
+        if (filteredProducts.length === 0) {
+            setMessage('Нет данных для экспорта в CSV.');
+            return;
+        }
+
+        const headers = [
+            'Дата', 'Название продукта', 'Магазин', 'Цена',
+            'Количество', 'Единица измерения', 'Категория', 'Цена за ед.'
+        ];
+
+        // Format data for CSV
+        const csvRows = filteredProducts.map(product => {
+            // Ensure date is in YYYY-MM-DD format for CSV
+            const formattedDate = product.originalTimestamp instanceof Date ?
+                product.originalTimestamp.toISOString().split('T')[0] : 'N/A';
+
+            const pricePerUnit = (product.quantity && product.quantity > 0) ?
+                (product.price / product.quantity).toFixed(2) : 'N/A';
+
+            // Escape commas and newlines in string fields
+            const escapeCsvField = (field) => {
+                if (field === null || field === undefined) return '';
+                let stringField = String(field);
+                if (stringField.includes(',') || stringField.includes('\n') || stringField.includes('"')) {
+                    return `"${stringField.replace(/"/g, '""')}"`;
+                }
+                return stringField;
+            };
+
+            return [
+                escapeCsvField(formattedDate),
+                escapeCsvField(product.productName),
+                escapeCsvField(product.storeName),
+                escapeCsvField(product.price.toFixed(2)),
+                escapeCsvField(product.quantity !== null ? product.quantity : ''),
+                escapeCsvField(product.unit || ''),
+                escapeCsvField(product.category || ''),
+                escapeCsvField(pricePerUnit !== 'N/A' ? `${pricePerUnit} €/${product.unit || ''}` : '')
+            ].join(',');
+        });
+
+        // Combine headers and rows
+        const csvString = [headers.join(','), ...csvRows].join('\n');
+
+        // Create a Blob and download link
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `price_data_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setMessage('Данные успешно экспортированы в CSV.');
+    };
 
     // Handle user login/signup
     const handleAuth = async (e) => {
@@ -597,7 +653,7 @@ function App() {
                                 />
                             </div>
                             <div className="form-field">
-                                <label htmlFor="unit" className="form-label">Единица измерения</label> {/* Исправлена опечатка здесь */}
+                                <label htmlFor="unit" className="form-label">Единица измерения</label>
                                 <input
                                     type="text"
                                     id="unit"
@@ -749,7 +805,7 @@ function App() {
                                                 <td>{product.category || 'N/A'}</td>
                                                 <td>{product.price.toFixed(2)} €</td>
                                                 <td>
-                                                    {pricePerUnit !== 'N/A' ? `${pricePerUnit} €/${product.unit}` : 'N/A'}
+                                                    {pricePerUnit !== 'N/A' ? `${pricePerUnit} €/${product.unit || ''}` : 'N/A'}
                                                 </td>
                                                 <td className="actions-cell">
                                                     <button
@@ -772,6 +828,15 @@ function App() {
                             </table>
                         </div>
                     )}
+                    <div className="export-controls">
+                        <button
+                            onClick={handleExportCsv}
+                            className="btn btn-secondary btn-full-width"
+                            disabled={filteredProducts.length === 0}
+                        >
+                            Экспорт в CSV
+                        </button>
+                    </div>
                 </div>
 
                 {/* Анализ цен с помощью LLM */}

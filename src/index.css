@@ -517,3 +517,9 @@ body {
     align-items: center;
   }
 }
+
+/* Дополнительные стили для кнопки экспорта */
+.export-controls {
+    margin-top: 1.5rem; /* Отступ сверху */
+    text-align: center;
+}
