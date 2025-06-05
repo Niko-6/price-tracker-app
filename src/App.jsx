@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'; // Removed createUserWithEmailAndPassword as it's not used in UI
 import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 // Импортируем библиотеку для рендеринга Markdown
@@ -36,9 +36,9 @@ function App() {
     // Authentication states
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [isLoginMode, setIsLoginMode] = useState(true); // true for login, false for signup. Убран для упрощения регистрации
+    // isLoginMode остается true, так как регистрация через UI не предусмотрена для семьи
 
-    // Input mode state: 'single' or 'bulk'
+    // Input mode state: 'single' or 'bulk' - ВОЗВРАЩЕНО
     const [inputMode, setInputMode] = useState('single');
     const [bulkInputText, setBulkInputText] = useState('');
 
@@ -93,7 +93,7 @@ function App() {
         }
     }, [firebaseConfig]); // Re-run if config changes (though it shouldn't in a real app)
 
-    // Fetch products from Firestore when db and userId are available, and public/private toggle changes
+    // Fetch products from Firestore when db and userId are available, and family ID changes
     useEffect(() => {
         if (!db || !userId) {
             setProducts([]); // Clear products if not authenticated or db not ready
@@ -186,7 +186,7 @@ function App() {
         }
     };
 
-    // Handle bulk adding products
+    // Handle bulk adding products - ВОЗВРАЩЕНА
     const handleBulkAddProducts = async (e) => {
         e.preventDefault();
         if (!bulkInputText.trim()) {
@@ -263,7 +263,7 @@ function App() {
         setCategory(product.category || ''); // Load category
         // Convert 'DD.MM.YYYY' back to 'YYYY-MM-DD' for the date input
         const [day, month, year] = product.date.split('.');
-        setPurchaseDate(`${year}-${month}-${day}`);
+        setPurchaseDate(`${year}-${month}-${day}`); // Corrected line
         setInputMode('single'); // Switch to single input mode when editing
     };
 
@@ -543,124 +543,165 @@ function App() {
                 )}
 
                 {/* Убран переключатель Public/Private Data */}
-                {/* Убран переключатель Input Mode, так как для общего списка он не особо нужен.
-                    Если понадобится, его можно вернуть. Сейчас оставлен только один режим ввода. */}
-                {/* Conditional Form Rendering (теперь всегда одна форма ввода) */}
-                <form onSubmit={handleAddOrUpdateProduct} className="form-section">
-                    <h2 className="section-header">Добавить/Обновить продукт</h2>
-                    <div className="form-grid">
-                        <div className="form-field">
-                            <label htmlFor="purchaseDate" className="form-label">Дата покупки</label>
-                            <input
-                                type="date"
-                                id="purchaseDate"
-                                value={purchaseDate}
-                                onChange={(e) => setPurchaseDate(e.target.value)}
-                                className="form-input"
-                            />
+                {/* ВОЗВРАЩЕН Переключатель Input Mode */}
+                <div className="input-mode-toggle-container">
+                    <button
+                        onClick={() => setInputMode('single')}
+                        className={`btn ${inputMode === 'single' ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                        Поштучная загрузка
+                    </button>
+                    <button
+                        onClick={() => setInputMode('bulk')}
+                        className={`btn ${inputMode === 'bulk' ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                        Загрузка списком
+                    </button>
+                </div>
+
+                {/* Conditional Form Rendering */}
+                {inputMode === 'single' ? (
+                    // Single Entry Form
+                    <form onSubmit={handleAddOrUpdateProduct} className="form-section">
+                        <h2 className="section-header">Добавить/Обновить продукт (поштучно)</h2>
+                        <div className="form-grid">
+                            <div className="form-field">
+                                <label htmlFor="purchaseDate" className="form-label">Дата покупки</label>
+                                <input
+                                    type="date"
+                                    id="purchaseDate"
+                                    value={purchaseDate}
+                                    onChange={(e) => setPurchaseDate(e.target.value)}
+                                    className="form-input"
+                                />
+                            </div>
+                            <div className="form-field">
+                                <label htmlFor="productName" className="form-label">Название продукта</label>
+                                <input
+                                    type="text"
+                                    id="productName"
+                                    value={productName}
+                                    onChange={(e) => setProductName(e.target.value)}
+                                    placeholder="Молоко"
+                                    list="productNames"
+                                    className="form-input"
+                                    required
+                                />
+                                <datalist id="productNames">
+                                    {uniqueProductNames.map((name, index) => (
+                                        <option key={index} value={name} />
+                                    ))}
+                                </datalist>
+                            </div>
+                            <div className="form-field">
+                                <label htmlFor="storeName" className="form-label">Магазин</label>
+                                <input
+                                    type="text"
+                                    id="storeName"
+                                    value={storeName}
+                                    onChange={(e) => setStoreName(e.target.value)}
+                                    placeholder="Пятерочка"
+                                    className="form-input"
+                                    required
+                                />
+                            </div>
+                            <div className="form-field">
+                                <label htmlFor="price" className="form-label">Цена</label>
+                                <input
+                                    type="number"
+                                    id="price"
+                                    value={price}
+                                    onChange={(e) => setPrice(e.target.value)}
+                                    placeholder="120.50"
+                                    step="0.01"
+                                    className="form-input"
+                                    required
+                                />
+                            </div>
+                            <div className="form-field">
+                                <label htmlFor="quantity" className="form-label">Количество</label>
+                                <input
+                                    type="number"
+                                    id="quantity"
+                                    value={quantity}
+                                    onChange={(e) => setQuantity(e.target.value)}
+                                    placeholder="1"
+                                    step="any"
+                                    className="form-input"
+                                />
+                            </div>
+                            <div className="form-field">
+                                <label htmlFor="unit" className="form-label">Единица измерения</label>
+                                <input
+                                    type="text"
+                                    id="unit"
+                                    value={unit}
+                                    onChange={(e) => setUnit(e.target.value)}
+                                    placeholder="шт., кг, л"
+                                    className="form-input"
+                                />
+                            </div>
+                            <div className="form-field">
+                                <label htmlFor="category" className="form-label">Категория</label>
+                                <input
+                                    type="text"
+                                    id="category"
+                                    value={category}
+                                    onChange={(e) => setCategory(e.target.value)}
+                                    placeholder="Молочные продукты"
+                                    list="categories"
+                                    className="form-input"
+                                />
+                                <datalist id="categories">
+                                    {uniqueCategories.map((cat, index) => (
+                                        <option key={index} value={cat} />
+                                    ))}
+                                </datalist>
+                            </div>
                         </div>
-                        <div className="form-field">
-                            <label htmlFor="productName" className="form-label">Название продукта</label>
-                            <input
-                                type="text"
-                                id="productName"
-                                value={productName}
-                                onChange={(e) => setProductName(e.target.value)}
-                                placeholder="Молоко"
-                                list="productNames"
-                                className="form-input"
-                                required
-                            />
-                            <datalist id="productNames">
-                                {uniqueProductNames.map((name, index) => (
-                                    <option key={index} value={name} />
-                                ))}
-                            </datalist>
+                        <div className="form-actions">
+                            <button
+                                type="submit"
+                                className="btn btn-primary btn-submit"
+                            >
+                                {editingProductId ? 'Обновить продукт' : 'Добавить продукт'}
+                            </button>
+                            {editingProductId && (
+                                <button
+                                    type="button"
+                                    onClick={resetForm}
+                                    className="btn btn-secondary btn-cancel"
+                                >
+                                    Отмена
+                                </button>
+                            )}
                         </div>
-                        <div className="form-field">
-                            <label htmlFor="storeName" className="form-label">Магазин</label>
-                            <input
-                                type="text"
-                                id="storeName"
-                                value={storeName}
-                                onChange={(e) => setStoreName(e.target.value)}
-                                placeholder="Пятерочка"
-                                className="form-input"
-                                required
-                            />
-                        </div>
-                        <div className="form-field">
-                            <label htmlFor="price" className="form-label">Цена</label>
-                            <input
-                                type="number"
-                                id="price"
-                                value={price}
-                                onChange={(e) => setPrice(e.target.value)}
-                                placeholder="120.50"
-                                step="0.01"
-                                className="form-input"
-                                required
-                            />
-                        </div>
-                        <div className="form-field">
-                            <label htmlFor="quantity" className="form-label">Количество</label>
-                            <input
-                                type="number"
-                                id="quantity"
-                                value={quantity}
-                                onChange={(e) => setQuantity(e.target.value)}
-                                placeholder="1"
-                                step="any"
-                                className="form-input"
-                            />
-                        </div>
-                        <div className="form-field">
-                            <label htmlFor="unit" className="form-label">Единица измерения</label>
-                            <input
-                                type="text"
-                                id="unit"
-                                value={unit}
-                                onChange={(e) => setUnit(e.target.value)}
-                                placeholder="шт., кг, л"
-                                className="form-input"
-                            />
-                        </div>
-                        <div className="form-field">
-                            <label htmlFor="category" className="form-label">Категория</label>
-                            <input
-                                type="text"
-                                id="category"
-                                value={category}
-                                onChange={(e) => setCategory(e.target.value)}
-                                placeholder="Молочные продукты"
-                                list="categories"
-                                className="form-input"
-                            />
-                            <datalist id="categories">
-                                {uniqueCategories.map((cat, index) => (
-                                    <option key={index} value={cat} />
-                                ))}
-                            </datalist>
-                        </div>
-                    </div>
-                    <div className="form-actions">
+                    </form>
+                ) : (
+                    // Bulk Entry Form - ВОЗВРАЩЕНА
+                    <form onSubmit={handleBulkAddProducts} className="form-section">
+                        <h2 className="section-header">Массовая загрузка покупок</h2>
+                        <p className="help-text">
+                            Введите каждую покупку на новой строке, используя формат:
+                            <br /><code className="code-block">Дата (ГГГГ-ММ-ДД),Название продукта,Магазин,Цена,Количество (необязательно),Единица измерения (необязательно),Категория (необязательно)</code>
+                            <br />Пример: <code className="code-block">2024-05-20,Молоко,Пятерочка,1.50,1,л,Молочные продукты</code>
+                            <br />Пример (без количества/единицы/категории): <code className="code-block">2024-05-21,Хлеб,Магнит,0.80</code>
+                        </p>
+                        <textarea
+                            className="form-textarea"
+                            placeholder="Введите список покупок здесь..."
+                            value={bulkInputText}
+                            onChange={(e) => setBulkInputText(e.target.value)}
+                        ></textarea>
                         <button
                             type="submit"
-                            className="btn btn-primary btn-submit"
+                            className="btn btn-primary btn-submit mt-4"
                         >
-                            {editingProductId ? 'Обновить продукт' : 'Добавить продукт'}
+                            Добавить список продуктов
                         </button>
-                        {editingProductId && (
-                            <button
-                                type="button"
-                                onClick={resetForm}
-                                className="btn btn-secondary btn-cancel"
-                            >
-                                Отмена
-                            </button>
-                        )}
-                    </div>
-                </form>
+                    </form>
+                )}
+
 
                 {/* Фильтры */}
                 <div className="section-card">
