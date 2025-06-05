@@ -3,6 +3,10 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
+// Импортируем библиотеку для рендеринга Markdown
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm'; // Для поддержки таблиц, зачеркнутого текста и т.д.
+
 // ВНИМАНИЕ: Импорт './index.css' должен быть только в файле main.jsx, а не здесь.
 // Если вы видите эту строку в App.jsx, пожалуйста, удалите ее.
 
@@ -27,13 +31,12 @@ function App() {
     const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
     const [message, setMessage] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [productToDelete, setProductToDelete] = useState(null); // Исправлено: useState(null) вместо = null;
+    const [productToDelete, setProductToDelete] = useState(null);
 
     // Authentication states
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [isLoginMode, setIsLoginMode] = useState(true); // true for login, false for signup
-    const [isPublicData, setIsPublicData] = useState(false); // Toggle for public/private data
+    const [isLoginMode, setIsLoginMode] = useState(true); // true for login, false for signup. Убран для упрощения регистрации
 
     // Input mode state: 'single' or 'bulk'
     const [inputMode, setInputMode] = useState('single');
@@ -52,6 +55,10 @@ function App() {
 };
 
     const appId = firebaseConfig.projectId; // Using projectId as appId for Firestore paths
+
+    // УНИКАЛЬНЫЙ ИДЕНТИФИКАТОР ДЛЯ ВАШЕЙ СЕМЬИ. ЗАМЕНИТЕ НА СВОЙ!
+    // Используйте что-то уникальное, например: "my-family-prices-2025" или "lavrenkov-family-tracker"
+    const FAMILY_SHARED_LIST_ID = "my-family-prices-2025"; 
 
     // Initialize Firebase and set up authentication
     useEffect(() => {
@@ -93,12 +100,8 @@ function App() {
             return;
         }
 
-        let productsCollectionRef;
-        if (isPublicData) {
-            productsCollectionRef = collection(db, `artifacts/${appId}/public/data/prices`);
-        } else {
-            productsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/prices`);
-        }
+        // Теперь всегда ссылаемся на общую семейную коллекцию
+        const productsCollectionRef = collection(db, `artifacts/${appId}/families/${FAMILY_SHARED_LIST_ID}/prices`);
 
         const q = query(productsCollectionRef);
 
@@ -124,7 +127,7 @@ function App() {
         });
 
         return () => unsubscribe(); // Cleanup snapshot listener
-    }, [db, userId, isPublicData, appId]); // Dependencies for this effect
+    }, [db, userId, appId, FAMILY_SHARED_LIST_ID]); // FAMILY_SHARED_LIST_ID добавлен в зависимости
 
     // Function to reset form fields
     const resetForm = () => {
@@ -163,12 +166,8 @@ function App() {
                 category: category.trim() || null, // Save category
             };
 
-            let targetCollectionRef;
-            if (isPublicData) {
-                targetCollectionRef = collection(db, `artifacts/${appId}/public/data/prices`);
-            } else {
-                targetCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/prices`);
-            }
+            // Теперь всегда ссылаемся на общую семейную коллекцию
+            const targetCollectionRef = collection(db, `artifacts/${appId}/families/${FAMILY_SHARED_LIST_ID}/prices`);
 
             if (editingProductId) {
                 // Update existing product
@@ -239,12 +238,8 @@ function App() {
         }
 
         try {
-            let targetCollectionRef;
-            if (isPublicData) {
-                targetCollectionRef = collection(db, `artifacts/${appId}/public/data/prices`);
-            } else {
-                targetCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/prices`);
-            }
+            // Теперь всегда ссылаемся на общую семейную коллекцию
+            const targetCollectionRef = collection(db, `artifacts/${appId}/families/${FAMILY_SHARED_LIST_ID}/prices`);
 
             const addPromises = productsToAdd.map(product => addDoc(targetCollectionRef, product));
             await Promise.all(addPromises);
@@ -287,12 +282,8 @@ function App() {
             return;
         }
         try {
-            let targetCollectionPath;
-            if (isPublicData) {
-                targetCollectionPath = `artifacts/${appId}/public/data/prices`;
-            } else {
-                targetCollectionPath = `artifacts/${appId}/users/${userId}/prices`;
-            }
+            // Теперь всегда ссылаемся на общую семейную коллекцию
+            const targetCollectionPath = `artifacts/${appId}/families/${FAMILY_SHARED_LIST_ID}/prices`;
             await deleteDoc(doc(db, targetCollectionPath, productToDelete.id));
             setMessage('Продукт успешно удален!');
         } catch (error) {
@@ -342,7 +333,16 @@ function App() {
             };
         });
 
-        const prompt = `Проанализируй следующие данные о ценах на продукты. Учти, что некоторые продукты могут быть весовыми (есть поля 'quantity' и 'unit', а также 'pricePerUnit' - цена за единицу), и имеют категорию ('category'). Валюта - евро (€). Выдели тенденции, сравни цены в разных магазинах для одних и тех же продуктов, и предложи выводы. Данные: ${JSON.stringify(dataForLLM)}`;
+        // МОДИФИЦИРОВАННЫЙ ПРОМПТ: Просим Gemini использовать Markdown для форматирования
+        const prompt = `Проанализируй следующие данные о ценах на продукты. Учти, что некоторые продукты могут быть весовыми (есть поля 'quantity' и 'unit', а также 'pricePerUnit' - цена за единицу), и имеют категорию ('category'). Валюта - евро (€).
+
+        Представь анализ в виде хорошо структурированного текста, используя **Markdown** для улучшения читаемости:
+        - Используй заголовки (например, ## Обзор цен, ### По продуктам, ### По магазинам).
+        - Используй жирный текст для выделения ключевых выводов.
+        - Используй списки (маркированные или нумерованные) для перечисления пунктов.
+        - Можешь использовать таблицы для сравнения цен, если это уместно.
+
+        Данные: ${JSON.stringify(dataForLLM)}`;
 
         try {
             const chatHistory = [];
@@ -390,7 +390,7 @@ function App() {
 
         // Format data for CSV
         const csvRows = filteredProducts.map(product => {
-            // Ensure date is in YYYY-MM-DD format for CSV
+            // Ensure date is in ISO format (YYYY-MM-DD) for CSV
             const formattedDate = product.originalTimestamp instanceof Date ?
                 product.originalTimestamp.toISOString().split('T')[0] : 'N/A';
 
@@ -441,15 +441,13 @@ function App() {
             return;
         }
         try {
-            if (isLoginMode) {
-                await signInWithEmailAndPassword(auth, email, password);
-            } else {
-                await createUserWithEmailAndPassword(auth, email, password);
-            }
-            setMessage('Успешный вход/регистрация!');
+            // Для семейного доступа, регистрация происходит только через консоль Firebase.
+            // Здесь мы только пытаемся войти в систему.
+            await signInWithEmailAndPassword(auth, email, password);
+            setMessage('Успешный вход!');
         } catch (error) {
             console.error("Ошибка аутентификации:", error);
-            setMessage(`Ошибка аутентификации: ${error.message}`);
+            setMessage(`Ошибка аутентификации: ${error.message}. Проверьте Email и пароль.`);
         }
     };
 
@@ -471,7 +469,7 @@ function App() {
             <div className="app-container auth-page">
                 <div className="auth-card">
                     <h1 className="auth-header">
-                        Добро пожаловать!
+                        Добро пожаловать в семейный анализатор цен!
                     </h1>
                     {message && (
                         <div className="message-box info">
@@ -507,15 +505,11 @@ function App() {
                             type="submit"
                             className="btn btn-primary"
                         >
-                            {isLoginMode ? 'Войти' : 'Зарегистрироваться'}
+                            Войти
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setIsLoginMode(!isLoginMode)}
-                            className="btn-link"
-                        >
-                            {isLoginMode ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
-                        </button>
+                        <p className="help-text mt-4">
+                            Для получения доступа свяжитесь с администратором приложения.
+                        </p>
                     </form>
                 </div>
             </div>
@@ -548,182 +542,125 @@ function App() {
                     </div>
                 )}
 
-                {/* Public/Private Data Toggle */}
-                <div className="data-toggle-container">
-                    <label htmlFor="dataToggle" className="data-toggle-label">
-                        <span className="data-toggle-text">Личные данные</span>
-                        <div className="toggle-switch">
+                {/* Убран переключатель Public/Private Data */}
+                {/* Убран переключатель Input Mode, так как для общего списка он не особо нужен.
+                    Если понадобится, его можно вернуть. Сейчас оставлен только один режим ввода. */}
+                {/* Conditional Form Rendering (теперь всегда одна форма ввода) */}
+                <form onSubmit={handleAddOrUpdateProduct} className="form-section">
+                    <h2 className="section-header">Добавить/Обновить продукт</h2>
+                    <div className="form-grid">
+                        <div className="form-field">
+                            <label htmlFor="purchaseDate" className="form-label">Дата покупки</label>
                             <input
-                                type="checkbox"
-                                id="dataToggle"
-                                className="toggle-input"
-                                checked={isPublicData}
-                                onChange={() => setIsPublicData(!isPublicData)}
+                                type="date"
+                                id="purchaseDate"
+                                value={purchaseDate}
+                                onChange={(e) => setPurchaseDate(e.target.value)}
+                                className="form-input"
                             />
-                            <div className="toggle-slider"></div>
                         </div>
-                        <span className="data-toggle-text">Общие данные</span>
-                    </label>
-                </div>
-
-                {/* Input Mode Toggle */}
-                <div className="input-mode-toggle-container">
-                    <button
-                        onClick={() => setInputMode('single')}
-                        className={`btn ${inputMode === 'single' ? 'btn-primary' : 'btn-secondary'}`}
-                    >
-                        Поштучная загрузка
-                    </button>
-                    <button
-                        onClick={() => setInputMode('bulk')}
-                        className={`btn ${inputMode === 'bulk' ? 'btn-primary' : 'btn-secondary'}`}
-                    >
-                        Загрузка списком
-                    </button>
-                </div>
-
-                {/* Conditional Form Rendering */}
-                {inputMode === 'single' ? (
-                    // Single Entry Form
-                    <form onSubmit={handleAddOrUpdateProduct} className="form-section">
-                        <div className="form-grid">
-                            <div className="form-field">
-                                <label htmlFor="purchaseDate" className="form-label">Дата покупки</label>
-                                <input
-                                    type="date"
-                                    id="purchaseDate"
-                                    value={purchaseDate}
-                                    onChange={(e) => setPurchaseDate(e.target.value)}
-                                    className="form-input"
-                                />
-                            </div>
-                            <div className="form-field">
-                                <label htmlFor="productName" className="form-label">Название продукта</label>
-                                <input
-                                    type="text"
-                                    id="productName"
-                                    value={productName}
-                                    onChange={(e) => setProductName(e.target.value)}
-                                    placeholder="Молоко"
-                                    list="productNames"
-                                    className="form-input"
-                                    required
-                                />
-                                <datalist id="productNames">
-                                    {uniqueProductNames.map((name, index) => (
-                                        <option key={index} value={name} />
-                                    ))}
-                                </datalist>
-                            </div>
-                            <div className="form-field">
-                                <label htmlFor="storeName" className="form-label">Магазин</label>
-                                <input
-                                    type="text"
-                                    id="storeName"
-                                    value={storeName}
-                                    onChange={(e) => setStoreName(e.target.value)}
-                                    placeholder="Пятерочка"
-                                    className="form-input"
-                                    required
-                                />
-                            </div>
-                            <div className="form-field">
-                                <label htmlFor="price" className="form-label">Цена</label>
-                                <input
-                                    type="number"
-                                    id="price"
-                                    value={price}
-                                    onChange={(e) => setPrice(e.target.value)}
-                                    placeholder="120.50"
-                                    step="0.01"
-                                    className="form-input"
-                                    required
-                                />
-                            </div>
-                            <div className="form-field">
-                                <label htmlFor="quantity" className="form-label">Количество</label>
-                                <input
-                                    type="number"
-                                    id="quantity"
-                                    value={quantity}
-                                    onChange={(e) => setQuantity(e.target.value)}
-                                    placeholder="1"
-                                    step="any"
-                                    className="form-input"
-                                />
-                            </div>
-                            <div className="form-field">
-                                <label htmlFor="unit" className="form-label">Единица измерения</label>
-                                <input
-                                    type="text"
-                                    id="unit"
-                                    value={unit}
-                                    onChange={(e) => setUnit(e.target.value)}
-                                    placeholder="шт., кг, л"
-                                    className="form-input"
-                                />
-                            </div>
-                            <div className="form-field">
-                                <label htmlFor="category" className="form-label">Категория</label>
-                                <input
-                                    type="text"
-                                    id="category"
-                                    value={category}
-                                    onChange={(e) => setCategory(e.target.value)}
-                                    placeholder="Молочные продукты"
-                                    list="categories"
-                                    className="form-input"
-                                />
-                                <datalist id="categories">
-                                    {uniqueCategories.map((cat, index) => (
-                                        <option key={index} value={cat} />
-                                    ))}
-                                </datalist>
-                            </div>
+                        <div className="form-field">
+                            <label htmlFor="productName" className="form-label">Название продукта</label>
+                            <input
+                                type="text"
+                                id="productName"
+                                value={productName}
+                                onChange={(e) => setProductName(e.target.value)}
+                                placeholder="Молоко"
+                                list="productNames"
+                                className="form-input"
+                                required
+                            />
+                            <datalist id="productNames">
+                                {uniqueProductNames.map((name, index) => (
+                                    <option key={index} value={name} />
+                                ))}
+                            </datalist>
                         </div>
-                        <div className="form-actions">
-                            <button
-                                type="submit"
-                                className="btn btn-primary btn-submit"
-                            >
-                                {editingProductId ? 'Обновить продукт' : 'Добавить продукт'}
-                            </button>
-                            {editingProductId && (
-                                <button
-                                    type="button"
-                                    onClick={resetForm}
-                                    className="btn btn-secondary btn-cancel"
-                                >
-                                    Отмена
-                                </button>
-                            )}
+                        <div className="form-field">
+                            <label htmlFor="storeName" className="form-label">Магазин</label>
+                            <input
+                                type="text"
+                                id="storeName"
+                                value={storeName}
+                                onChange={(e) => setStoreName(e.target.value)}
+                                placeholder="Пятерочка"
+                                className="form-input"
+                                required
+                            />
                         </div>
-                    </form>
-                ) : (
-                    // Bulk Entry Form
-                    <form onSubmit={handleBulkAddProducts} className="form-section">
-                        <h2 className="section-header">Массовая загрузка покупок</h2>
-                        <p className="help-text">
-                            Введите каждую покупку на новой строке, используя формат:
-                            <br /><code className="code-block">Дата (ГГГГ-ММ-ДД),Название продукта,Магазин,Цена,Количество (необязательно),Единица измерения (необязательно),Категория (необязательно)</code>
-                            <br />Пример: <code className="code-block">2024-05-20,Молоко,Пятерочка,1.50,1,л,Молочные продукты</code>
-                            <br />Пример (без количества/единицы/категории): <code className="code-block">2024-05-21,Хлеб,Магнит,0.80</code>
-                        </p>
-                        <textarea
-                            className="form-textarea"
-                            placeholder="Введите список покупок здесь..."
-                            value={bulkInputText}
-                            onChange={(e) => setBulkInputText(e.target.value)}
-                        ></textarea>
+                        <div className="form-field">
+                            <label htmlFor="price" className="form-label">Цена</label>
+                            <input
+                                type="number"
+                                id="price"
+                                value={price}
+                                onChange={(e) => setPrice(e.target.value)}
+                                placeholder="120.50"
+                                step="0.01"
+                                className="form-input"
+                                required
+                            />
+                        </div>
+                        <div className="form-field">
+                            <label htmlFor="quantity" className="form-label">Количество</label>
+                            <input
+                                type="number"
+                                id="quantity"
+                                value={quantity}
+                                onChange={(e) => setQuantity(e.target.value)}
+                                placeholder="1"
+                                step="any"
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="form-field">
+                            <label htmlFor="unit" className="form-label">Единица измерения</label>
+                            <input
+                                type="text"
+                                id="unit"
+                                value={unit}
+                                onChange={(e) => setUnit(e.target.value)}
+                                placeholder="шт., кг, л"
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="form-field">
+                            <label htmlFor="category" className="form-label">Категория</label>
+                            <input
+                                type="text"
+                                id="category"
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                                placeholder="Молочные продукты"
+                                list="categories"
+                                className="form-input"
+                            />
+                            <datalist id="categories">
+                                {uniqueCategories.map((cat, index) => (
+                                    <option key={index} value={cat} />
+                                ))}
+                            </datalist>
+                        </div>
+                    </div>
+                    <div className="form-actions">
                         <button
                             type="submit"
-                            className="btn btn-primary btn-submit mt-4"
+                            className="btn btn-primary btn-submit"
                         >
-                            Добавить список продуктов
+                            {editingProductId ? 'Обновить продукт' : 'Добавить продукт'}
                         </button>
-                    </form>
-                )}
-
+                        {editingProductId && (
+                            <button
+                                type="button"
+                                onClick={resetForm}
+                                className="btn btn-secondary btn-cancel"
+                            >
+                                Отмена
+                            </button>
+                        )}
+                    </div>
+                </form>
 
                 {/* Фильтры */}
                 <div className="section-card">
@@ -851,7 +788,10 @@ function App() {
                     </button>
                     <div className="analysis-result-box">
                         {analysisResult ? (
-                            <p className="analysis-text">{analysisResult}</p>
+                            // Используем ReactMarkdown для рендеринга форматированного текста
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="analysis-text">
+                                {analysisResult}
+                            </ReactMarkdown>
                         ) : (
                             <p className="placeholder-text">Нажмите "Получить анализ цен", чтобы сгенерировать отчет.</p>
                         )}
