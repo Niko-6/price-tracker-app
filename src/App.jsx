@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'; // Removed createUserWithEmailAndPassword as it's not used in UI
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 // Импортируем библиотеку для рендеринга Markdown
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'; // Для поддержки таблиц, зачеркнутого текста и т.д.
-
-// ВНИМАНИЕ: Импорт './index.css' должен быть только в файле main.jsx, а не здесь.
-// Если вы видите эту строку в App.jsx, пожалуйста, удалите ее.
 
 function App() {
     const [db, setDb] = useState(null);
@@ -18,32 +15,28 @@ function App() {
     const [productName, setProductName] = useState('');
     const [storeName, setStoreName] = useState('');
     const [price, setPrice] = useState('');
-    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]); // Default to today's date (YYYY-MM-DD)
+    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
     const [quantity, setQuantity] = useState('');
     const [unit, setUnit] = useState('');
-    const [category, setCategory] = useState(''); // New state for category
-    const [editingProductId, setEditingProductId] = useState(null); // State to track which product is being edited
+    const [category, setCategory] = useState('');
+    const [editingProductId, setEditingProductId] = useState(null);
 
     const [filterProduct, setFilterProduct] = useState('');
     const [filterStore, setFilterStore] = useState('');
-    const [filterCategory, setFilterCategory] = useState(''); // New state for category filter
+    const [filterCategory, setFilterCategory] = useState('');
     const [analysisResult, setAnalysisResult] = useState('');
     const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
     const [message, setMessage] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [productToDelete, setProductToDelete] = useState(null);
 
-    // Authentication states
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    // isLoginMode остается true, так как регистрация через UI не предусмотрена для семьи
 
-    // Input mode state: 'single' or 'bulk' - ВОЗВРАЩЕНО
     const [inputMode, setInputMode] = useState('single');
     const [bulkInputText, setBulkInputText] = useState('');
 
     // Firebase Configuration (REPLACE THESE WITH YOUR ACTUAL FIREBASE CONFIG)
-    // You will get this from your Firebase project settings.
     const firebaseConfig = {
   apiKey: "AIzaSyB0FBsdn8XEV1il35TSidXwS94_dRaoxKQ",
   authDomain: "pricetrackerapp-28d82.firebaseapp.com",
@@ -54,13 +47,11 @@ function App() {
   measurementId: "G-Y7FKBRTGCX"
 };
 
-    const appId = firebaseConfig.projectId; // Using projectId as appId for Firestore paths
+    const appId = firebaseConfig.projectId;
 
     // УНИКАЛЬНЫЙ ИДЕНТИФИКАТОР ДЛЯ ВАШЕЙ СЕМЬИ. ЗАМЕНИТЕ НА СВОЙ!
-    // Используйте что-то уникальное, например: "my-family-prices-2025" или "lavrenkov-family-tracker"
     const FAMILY_SHARED_LIST_ID = "my-family-prices-2025"; 
 
-    // Initialize Firebase and set up authentication
     useEffect(() => {
         try {
             if (firebaseConfig.apiKey === "YOUR_API_KEY") {
@@ -75,7 +66,6 @@ function App() {
             setDb(firestore);
             setAuth(firebaseAuth);
 
-            // Listen for auth state changes to get the user ID
             const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
                 if (user) {
                     setUserId(user.uid);
@@ -86,21 +76,19 @@ function App() {
                 }
             });
 
-            return () => unsubscribe(); // Cleanup auth listener
+            return () => unsubscribe();
         } catch (error) {
             console.error("Ошибка инициализации Firebase:", error);
             setMessage(`Ошибка инициализации приложения: ${error.message}`);
         }
-    }, [firebaseConfig]); // Re-run if config changes (though it shouldn't in a real app)
+    }, [firebaseConfig]);
 
-    // Fetch products from Firestore when db and userId are available, and family ID changes
     useEffect(() => {
         if (!db || !userId) {
-            setProducts([]); // Clear products if not authenticated or db not ready
+            setProducts([]);
             return;
         }
 
-        // Теперь всегда ссылаемся на общую семейную коллекцию
         const productsCollectionRef = collection(db, `artifacts/${appId}/families/${FAMILY_SHARED_LIST_ID}/prices`);
 
         const q = query(productsCollectionRef);
@@ -108,17 +96,14 @@ function App() {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedProducts = snapshot.docs.map(doc => {
                 const data = doc.data();
-                // Handle date conversion: Firestore Timestamp to 'DD.MM.YYYY' string
                 const displayDate = data.date?.toDate().toLocaleDateString('ru-RU') || 'N/A';
                 return {
                     id: doc.id,
                     ...data,
-                    date: displayDate, // Store formatted date for display
-                    // Keep original timestamp for sorting if needed, or parse back
-                    originalTimestamp: data.date?.toDate() || new Date(0) // Use epoch for 'N/A' dates
+                    date: displayDate,
+                    originalTimestamp: data.date?.toDate() || new Date(0)
                 };
             });
-            // Sort products by original timestamp in descending order in memory
             fetchedProducts.sort((a, b) => b.originalTimestamp.getTime() - a.originalTimestamp.getTime());
             setProducts(fetchedProducts);
         }, (error) => {
@@ -126,22 +111,20 @@ function App() {
             setMessage(`Ошибка загрузки данных: ${error.message}`);
         });
 
-        return () => unsubscribe(); // Cleanup snapshot listener
-    }, [db, userId, appId, FAMILY_SHARED_LIST_ID]); // FAMILY_SHARED_LIST_ID добавлен в зависимости
+        return () => unsubscribe();
+    }, [db, userId, appId, FAMILY_SHARED_LIST_ID]);
 
-    // Function to reset form fields
     const resetForm = () => {
         setProductName('');
         setStoreName('');
         setPrice('');
         setQuantity('');
         setUnit('');
-        setCategory(''); // Reset category
+        setCategory('');
         setPurchaseDate(new Date().toISOString().split('T')[0]);
         setEditingProductId(null);
     };
 
-    // Handle adding or updating a product (single entry)
     const handleAddOrUpdateProduct = async (e) => {
         e.preventDefault();
         if (!productName || !storeName || !price || isNaN(parseFloat(price))) {
@@ -163,19 +146,16 @@ function App() {
                 date: dateToSave,
                 quantity: quantity ? parseFloat(quantity) : null,
                 unit: unit.trim() || null,
-                category: category.trim() || null, // Save category
+                category: category.trim() || null,
             };
 
-            // Теперь всегда ссылаемся на общую семейную коллекцию
             const targetCollectionRef = collection(db, `artifacts/${appId}/families/${FAMILY_SHARED_LIST_ID}/prices`);
 
             if (editingProductId) {
-                // Update existing product
                 const productRef = doc(db, targetCollectionRef.path, editingProductId);
                 await updateDoc(productRef, productData);
                 setMessage('Продукт успешно обновлен!');
             } else {
-                // Add new product
                 await addDoc(targetCollectionRef, productData);
                 setMessage('Продукт успешно добавлен!');
             }
@@ -186,7 +166,6 @@ function App() {
         }
     };
 
-    // Handle bulk adding products - ВОЗВРАЩЕНА
     const handleBulkAddProducts = async (e) => {
         e.preventDefault();
         if (!bulkInputText.trim()) {
@@ -204,9 +183,7 @@ function App() {
 
         for (const line of lines) {
             const parts = line.split(',').map(part => part.trim());
-            // Expected format: Date,ProductName,StoreName,Price,Quantity,Unit,Category
-            // Example: 2024-05-20,Молоко,Пятерочка,1.50,1,л,Молочные продукты
-            if (parts.length >= 4) { // Minimum required: Date, ProductName, StoreName, Price
+            if (parts.length >= 4) {
                 const [dateStr, pName, sName, pPriceStr, pQuantityStr, pUnit, pCategory] = parts;
                 const parsedPrice = parseFloat(pPriceStr);
                 const parsedQuantity = pQuantityStr ? parseFloat(pQuantityStr) : null;
@@ -220,7 +197,7 @@ function App() {
                         date: parsedDate,
                         quantity: parsedQuantity,
                         unit: pUnit || null,
-                        category: pCategory || null, // Parse category
+                        category: pCategory || null,
                     });
                 } else {
                     errorCount++;
@@ -238,21 +215,19 @@ function App() {
         }
 
         try {
-            // Теперь всегда ссылаемся на общую семейную коллекцию
             const targetCollectionRef = collection(db, `artifacts/${appId}/families/${FAMILY_SHARED_LIST_ID}/prices`);
 
             const addPromises = productsToAdd.map(product => addDoc(targetCollectionRef, product));
             await Promise.all(addPromises);
 
             setMessage(`Успешно добавлено ${productsToAdd.length} продуктов. Ошибок в строках: ${errorCount}`);
-            setBulkInputText(''); // Clear textarea after successful import
+            setBulkInputText('');
         } catch (error) {
             console.error("Ошибка массового добавления продуктов:", error);
             setMessage(`Ошибка массового добавления продуктов: ${error.message}`);
         }
     };
 
-    // Handle editing a product
     const handleEditProduct = (product) => {
         setEditingProductId(product.id);
         setProductName(product.productName);
@@ -260,20 +235,17 @@ function App() {
         setPrice(product.price);
         setQuantity(product.quantity || '');
         setUnit(product.unit || '');
-        setCategory(product.category || ''); // Load category
-        // Convert 'DD.MM.YYYY' back to 'YYYY-MM-DD' for the date input
+        setCategory(product.category || '');
         const [day, month, year] = product.date.split('.');
-        setPurchaseDate(`${year}-${month}-${day}`); // Corrected line
-        setInputMode('single'); // Switch to single input mode when editing
+        setPurchaseDate(`${year}-${month}-${day}`);
+        setInputMode('single');
     };
 
-    // Handle deleting a product (show confirmation modal)
     const handleDeleteClick = (product) => {
         setProductToDelete(product);
         setShowConfirmModal(true);
     };
 
-    // Confirm deletion
     const confirmDelete = async () => {
         if (!productToDelete || !db || !userId) {
             setMessage('Ошибка: Не удалось удалить продукт.');
@@ -282,7 +254,6 @@ function App() {
             return;
         }
         try {
-            // Теперь всегда ссылаемся на общую семейную коллекцию
             const targetCollectionPath = `artifacts/${appId}/families/${FAMILY_SHARED_LIST_ID}/prices`;
             await deleteDoc(doc(db, targetCollectionPath, productToDelete.id));
             setMessage('Продукт успешно удален!');
@@ -295,20 +266,16 @@ function App() {
         }
     };
 
-    // Filtered products based on user input
     const filteredProducts = products.filter(product => {
         const matchesProduct = filterProduct ? product.productName.toLowerCase().includes(filterProduct.toLowerCase()) : true;
         const matchesStore = filterStore ? product.storeName.toLowerCase().includes(filterStore.toLowerCase()) : true;
-        const matchesCategory = filterCategory ? product.category?.toLowerCase().includes(filterCategory.toLowerCase()) : true; // Filter by category
+        const matchesCategory = filterCategory ? product.category?.toLowerCase().includes(filterCategory.toLowerCase()) : true;
         return matchesProduct && matchesStore && matchesCategory;
     });
 
-    // Get unique product names for datalist suggestions
     const uniqueProductNames = Array.from(new Set(products.map(p => p.productName))).sort();
-    // Get unique categories for datalist suggestions
-    const uniqueCategories = Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort(); // filter(Boolean) removes null/undefined
+    const uniqueCategories = Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort();
 
-    // Function to call the LLM for analysis
     const analyzePrices = useCallback(async () => {
         if (!filteredProducts.length) {
             setAnalysisResult('Нет данных для анализа. Добавьте хотя бы один продукт.');
@@ -318,7 +285,6 @@ function App() {
         setIsLoadingAnalysis(true);
         setAnalysisResult('Генерирую анализ...');
 
-        // Prepare data for LLM, including category
         const dataForLLM = filteredProducts.map(({ productName, storeName, price, date, quantity, unit, category }) => {
             const pricePerUnit = (quantity && quantity > 0) ? (price / quantity).toFixed(2) : 'N/A';
             return {
@@ -328,19 +294,19 @@ function App() {
                 date,
                 quantity: quantity !== null ? quantity : 'N/A',
                 unit: unit !== null ? unit : 'N/A',
-                category: category !== null ? category : 'N/A', // Include category in LLM data
+                category: category !== null ? category : 'N/A',
                 pricePerUnit: pricePerUnit !== 'N/A' ? `${pricePerUnit} €/${unit}` : 'N/A'
             };
         });
 
-        // МОДИФИЦИРОВАННЫЙ ПРОМПТ: Просим Gemini использовать Markdown для форматирования
         const prompt = `Проанализируй следующие данные о ценах на продукты. Учти, что некоторые продукты могут быть весовыми (есть поля 'quantity' и 'unit', а также 'pricePerUnit' - цена за единицу), и имеют категорию ('category'). Валюта - евро (€).
 
         Представь анализ в виде хорошо структурированного текста, используя **Markdown** для улучшения читаемости.
         **Избегай использования таблиц и блоков кода, если это не явно необходимо.**
         Предпочтение отдавай заголовкам (например, ## Обзор цен, ### По продуктам, ### По магазинам), жирному тексту для выделения ключевых выводов и маркированным/нумерованным спискам для обобщения информации.
         Разбей информацию на логические секции с подзаголовками, чтобы текст легко читался.
-        Убедись, что текст полностью помещается в окно и не выходит за его пределы.
+        Убедись, что текст полностью помещается в окно и не выходит за его пределы, используя перенос строк, где это необходимо. Сделай анализ более кратким и четким, без лишних деталей, сосредоточься на основных выводах и ключевых тенденциях.
+        Выделяй важные моменты **жирным шрифтом**.
 
         Данные: ${JSON.stringify(dataForLLM)}`;
 
@@ -348,7 +314,7 @@ function App() {
             const chatHistory = [];
             chatHistory.push({ role: "user", parts: [{ text: prompt }] });
             const payload = { contents: chatHistory };
-            const apiKey = "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo"; // Вставьте ваш API-ключ Gemini здесь
+            const apiKey = "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
@@ -376,7 +342,6 @@ function App() {
         }
     }, [filteredProducts]);
 
-    // Function to handle CSV export
     const handleExportCsv = () => {
         if (filteredProducts.length === 0) {
             setMessage('Нет данных для экспорта в CSV.');
@@ -388,16 +353,13 @@ function App() {
             'Количество', 'Единица измерения', 'Категория', 'Цена за ед.'
         ];
 
-        // Format data for CSV
         const csvRows = filteredProducts.map(product => {
-            // Ensure date is in ISO format (YYYY-MM-DD) for CSV
             const formattedDate = product.originalTimestamp instanceof Date ?
                 product.originalTimestamp.toISOString().split('T')[0] : 'N/A';
 
             const pricePerUnit = (product.quantity && product.quantity > 0) ?
                 (product.price / product.quantity).toFixed(2) : 'N/A';
 
-            // Escape commas and newlines in string fields
             const escapeCsvField = (field) => {
                 if (field === null || field === undefined) return '';
                 let stringField = String(field);
@@ -419,10 +381,8 @@ function App() {
             ].join(',');
         });
 
-        // Combine headers and rows
         const csvString = [headers.join(','), ...csvRows].join('\n');
 
-        // Create a Blob and download link
         const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -433,7 +393,6 @@ function App() {
         setMessage('Данные успешно экспортированы в CSV.');
     };
 
-    // Handle user login/signup
     const handleAuth = async (e) => {
         e.preventDefault();
         if (!auth) {
@@ -441,8 +400,6 @@ function App() {
             return;
         }
         try {
-            // Для семейного доступа, регистрация происходит только через консоль Firebase.
-            // Здесь мы только пытаемся войти в систему.
             await signInWithEmailAndPassword(auth, email, password);
             setMessage('Успешный вход!');
         } catch (error) {
@@ -451,13 +408,12 @@ function App() {
         }
     };
 
-    // Handle user logout
     const handleLogout = async () => {
         if (!auth) return;
         try {
             await signOut(auth);
             setMessage('Вы вышли из системы.');
-            setUserId(null); // Clear userId on logout
+            setUserId(null);
         } catch (error) {
             console.error("Ошибка выхода:", error);
             setMessage(`Ошибка выхода: ${error.message}`);
@@ -542,8 +498,6 @@ function App() {
                     </div>
                 )}
 
-                {/* Убран переключатель Public/Private Data */}
-                {/* ВОЗВРАЩЕН Переключатель Input Mode */}
                 <div className="input-mode-toggle-container">
                     <button
                         onClick={() => setInputMode('single')}
@@ -559,9 +513,7 @@ function App() {
                     </button>
                 </div>
 
-                {/* Conditional Form Rendering */}
                 {inputMode === 'single' ? (
-                    // Single Entry Form
                     <form onSubmit={handleAddOrUpdateProduct} className="form-section">
                         <h2 className="section-header">Добавить/Обновить продукт (поштучно)</h2>
                         <div className="form-grid">
@@ -678,7 +630,6 @@ function App() {
                         </div>
                     </form>
                 ) : (
-                    // Bulk Entry Form - ВОЗВРАЩЕНА
                     <form onSubmit={handleBulkAddProducts} className="form-section">
                         <h2 className="section-header">Массовая загрузка покупок</h2>
                         <p className="help-text">
@@ -703,7 +654,6 @@ function App() {
                 )}
 
 
-                {/* Фильтры */}
                 <div className="section-card">
                     <h2 className="section-header">Фильтры</h2>
                     <div className="form-grid-filters">
@@ -749,7 +699,6 @@ function App() {
                     </div>
                 </div>
 
-                {/* Таблица данных */}
                 <div className="section-card no-padding-top">
                     <h2 className="section-header-padded">Ваши продукты</h2>
                     {filteredProducts.length === 0 ? (
@@ -817,7 +766,6 @@ function App() {
                     </div>
                 </div>
 
-                {/* Анализ цен с помощью LLM */}
                 <div className="section-card">
                     <h2 className="section-header">Анализ цен</h2>
                     <button
@@ -829,7 +777,6 @@ function App() {
                     </button>
                     <div className="analysis-result-box">
                         {analysisResult ? (
-                            // Используем ReactMarkdown для рендеринга форматированного текста
                             <ReactMarkdown remarkPlugins={[remarkGfm]} className="analysis-text">
                                 {analysisResult}
                             </ReactMarkdown>
@@ -840,7 +787,6 @@ function App() {
                 </div>
             </div>
 
-            {/* Confirmation Modal */}
             {showConfirmModal && (
                 <div className="modal-overlay">
                     <div className="modal-content">
