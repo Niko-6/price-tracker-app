@@ -18,7 +18,7 @@ function App() {
     const [productName, setProductName] = useState('');
     const [storeName, setStoreName] = useState('');
     const [price, setPrice] = useState('');
-    const [purchaseDate, setPurchaseDate] = new Date().toISOString().split('T')[0]; // Default to today's date (YYYY-MM-DD)
+    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]); // Default to today's date (YYYY-MM-DD)
     const [quantity, setQuantity] = useState('');
     const [unit, setUnit] = useState('');
     const [category, setCategory] = useState(''); // New state for category
@@ -35,11 +35,11 @@ function App() {
 
     // Authentication states
     const [email, setEmail] = useState('');
-    const [password, setPassword] = '';
+    const [password, setPassword] = useState('');
 
     // Input mode state: 'single' or 'bulk'
     const [inputMode, setInputMode] = useState('single');
-    const [bulkInputText, setBulkInputText] = '';
+    const [bulkInputText, setBulkInputText] = useState('');
 
     // New states for custom analysis
     const [customAnalysisPrompt, setCustomAnalysisPrompt] = useState('');
@@ -288,14 +288,14 @@ function App() {
     const uniqueProductNames = Array.from(new Set(products.map(p => p.productName))).sort();
     const uniqueCategories = Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort();
 
-    const analyzePrices = useCallback(async () => {
+    const fetchAnalysisFromGemini = async (currentPrompt, setLoading, setResult) => {
         if (!filteredProducts.length) {
-            setAnalysisResult('Нет данных для анализа. Добавьте хотя бы один продукт.');
+            setResult('Нет данных для анализа. Добавьте хотя бы один продукт.');
             return;
         }
 
-        setIsLoadingAnalysis(true);
-        setAnalysisResult('Генерирую анализ...');
+        setLoading(true);
+        setResult('Генерирую анализ...');
 
         const dataForLLM = filteredProducts.map(({ productName, storeName, price, date, quantity, unit, category }) => {
             const pricePerUnit = (quantity && quantity > 0) ? (price / quantity).toFixed(2) : 'N/A';
@@ -311,116 +311,77 @@ function App() {
             };
         });
 
-        const prompt = `Проанализируй следующие данные о ценах на продукты. Учти, что некоторые продукты могут быть весовыми (есть поля 'quantity' и 'unit', а также 'pricePerUnit' - цена за единицу), и имеют категорию ('category'). Валюта - евро (€).
+        const fullPrompt = `${currentPrompt}
 
-        Представь анализ в виде хорошо структурированного текста, используя **Markdown** для улучшения читаемости.
-        **Избегай использования таблиц и блоков кода, если это не явно необходимо.**
+        Данные: ${JSON.stringify(dataForLLM)}`;
+
+        try {
+            const chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: fullPrompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo"; // <-- Убедитесь, что это ваш реальный API-ключ Gemini
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            // Проверка API ключа перед отправкой запроса
+            if (apiKey === "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo" || !apiKey) {
+                setResult('Ошибка: API-ключ Gemini не установлен. Пожалуйста, замените "ВАШ_СКОПИРОВАННЫЙ_КЛЮЧ_GEMINI" на ваш реальный ключ.');
+                return;
+            }
+
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("Gemini API Error Response:", errorData);
+                setResult(`Ошибка API Gemini: ${errorData.error?.message || response.statusText}. Проверьте ваш API-ключ и данные.`);
+                return;
+            }
+
+            const result = await response.json();
+
+            if (result.candidates && result.candidates.length > 0 &&
+                result.candidates[0].content && result.candidates[0].content.parts &&
+                result.candidates[0].content.parts.length > 0) {
+                const text = result.candidates[0].content.parts[0].text;
+                setResult(text);
+            } else {
+                setResult('Не удалось получить анализ. Ответ Gemini был неожиданным или пустым. Проверьте консоль для получения подробностей.');
+                console.error("Unexpected LLM response structure:", result);
+            }
+        } catch (error) {
+            console.error("Ошибка при вызове LLM:", error);
+            setResult(`Ошибка при получении анализа: ${error.message}. Возможно, проблемы с сетью или неверный API-ключ.`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const analyzePrices = useCallback(() => {
+        const defaultPrompt = `Проанализируй следующие данные о ценах на продукты. Учти, что некоторые продукты могут быть весовыми (есть поля 'quantity' и 'unit', а также 'pricePerUnit' - цена за единицу), и имеют категорию ('category'). Валюта - евро (€).
+
+        Представь анализ в виде хорошо структурированного текста.
+        Избегай использования таблиц и блоков кода, если это не явно необходимо.
         Предпочтение отдавай заголовкам (например, ## Обзор цен, ### По продуктам, ### По магазинам), жирному тексту для выделения ключевых выводов и маркированным/нумерованным спискам для обобщения информации.
         Разбей информацию на логические секции с подзаголовками, чтобы текст легко читался.
-        Сделай анализ максимально кратким и четким, без лишних деталей и вводных фраз. Сосредоточься только на основных выводах и рекомендациях. Убедись, что текст полностью помещается в окно, используя перенос строк, где это необходимо, и не содержит очень длинных слов без пробелов.
+        Сделай анализ максимально кратким и четким, без лишних деталей и вводных фраз. Сосредоточься только на основных выводах и рекомендациях. Убедись, что текст полностью помещается в окно, используя перенос строк, где это необходимо, и не содержит очень длинных слов без пробелов.`;
+        fetchAnalysisFromGemini(defaultPrompt, setIsLoadingAnalysis, setAnalysisResult);
+    }, [filteredProducts, fetchAnalysisFromGemini]); // Добавили fetchAnalysisFromGemini в зависимости
 
-        Данные: ${JSON.stringify(dataForLLM)}`;
-
-        try {
-            const chatHistory = [];
-            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-            const payload = { contents: chatHistory };
-            const apiKey = "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
-
-            if (result.candidates && result.candidates.length > 0 &&
-                result.candidates[0].content && result.candidates[0].content.parts &&
-                result.candidates[0].content.parts.length > 0) {
-                const text = result.candidates[0].content.parts[0].text;
-                setAnalysisResult(text);
-            } else {
-                setAnalysisResult('Не удалось получить анализ. Попробуйте еще раз.');
-                console.error("Unexpected LLM response structure:", result);
-            }
-        } catch (error) {
-            console.error("Ошибка при вызове LLM:", error);
-            setAnalysisResult(`Ошибка при получении анализа: ${error.message}`);
-        } finally {
-            setIsLoadingAnalysis(false);
-        }
-    }, [filteredProducts]);
-
-    const handleCustomAnalysis = useCallback(async () => {
-        if (!customAnalysisPrompt.trim()) {
-            setCustomAnalysisResult('Пожалуйста, введите ваш запрос для анализа.');
-            return;
-        }
-        if (!filteredProducts.length) {
-            setCustomAnalysisResult('Нет данных для анализа. Добавьте хотя бы один продукт.');
-            return;
-        }
-
-        setIsLoadingCustomAnalysis(true);
-        setCustomAnalysisResult('Генерирую пользовательский анализ...');
-
-        const dataForLLM = filteredProducts.map(({ productName, storeName, price, date, quantity, unit, category }) => {
-            const pricePerUnit = (quantity && quantity > 0) ? (price / quantity).toFixed(2) : 'N/A';
-            return {
-                productName,
-                storeName,
-                price,
-                date,
-                quantity: quantity !== null ? quantity : 'N/A',
-                unit: unit !== null ? unit : 'N/A',
-                category: category !== null ? category : 'N/A',
-                pricePerUnit: pricePerUnit !== 'N/A' ? `${pricePerUnit} €/${unit}` : 'N/A'
-            };
-        });
-
-        const prompt = `На основе следующих данных о ценах на продукты, выполни пользовательский запрос: "${customAnalysisPrompt}".
+    const handleCustomAnalysis = useCallback(() => {
+        const customPromptPrefix = `На основе следующих данных о ценах на продукты, выполни пользовательский запрос: "${customAnalysisPrompt}".
         Учти, что некоторые продукты могут быть весовыми (есть поля 'quantity' и 'unit', а также 'pricePerUnit' - цена за единицу), и имеют категорию ('category'). Валюта - евро (€).
-        Представь анализ в виде хорошо структурированного текста, используя **Markdown** для улучшения читаемости.
-        **Избегай использования таблиц и блоков кода, если это не явно необходимо.**
+        Представь анализ в виде хорошо структурированного текста.
+        Избегай использования таблиц и блоков кода, если это не явно необходимо.
         Предпочтение отдавай заголовкам, жирному тексту для выделения ключевых выводов и маркированным/нумерованным спискам для обобщения информации.
         Разбей информацию на логические секции с подзаголовками, чтобы текст легко читался.
-        Сделай анализ максимально кратким и четким, без лишних деталей и вводных фраз. Сосредоточься только на основных выводах и рекомендациях. Убедись, что текст полностью помещается в окно, используя перенос строк, где это необходимо, и не содержит очень длинных слов без пробелов.
-
-        Данные: ${JSON.stringify(dataForLLM)}`;
-
-        try {
-            const chatHistory = [];
-            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-            const payload = { contents: chatHistory };
-            const apiKey = "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
-
-            if (result.candidates && result.candidates.length > 0 &&
-                result.candidates[0].content && result.candidates[0].content.parts &&
-                result.candidates[0].content.parts.length > 0) {
-                const text = result.candidates[0].content.parts[0].text;
-                setCustomAnalysisResult(text);
-            } else {
-                setCustomAnalysisResult('Не удалось получить анализ. Попробуйте еще раз.');
-                console.error("Unexpected LLM response structure:", result);
-            }
-        } catch (error) {
-            console.error("Ошибка при вызове LLM:", error);
-            setCustomAnalysisResult(`Ошибка при получении анализа: ${error.message}`);
-        } finally {
-            setIsLoadingCustomAnalysis(false);
-        }
-    }, [customAnalysisPrompt, filteredProducts]);
+        Сделай анализ максимально кратким и четким, без лишних деталей и вводных фраз. Сосредоточься только на основных выводах и рекомендациях. Убедись, что текст полностью помещается в окно, используя перенос строк, где это необходимо, и не содержит очень длинных слов без пробелов.`;
+        fetchAnalysisFromGemini(customPromptPrefix, setIsLoadingCustomAnalysis, setCustomAnalysisResult);
+    }, [customAnalysisPrompt, filteredProducts, fetchAnalysisFromGemini]); // Добавили fetchAnalysisFromGemini в зависимости
 
     const handleExportCsv = () => {
         if (filteredProducts.length === 0) {
