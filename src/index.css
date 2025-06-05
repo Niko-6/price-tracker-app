@@ -7,7 +7,7 @@ body {
   background: linear-gradient(to bottom right, #e0f2fe, #e9d5ff); /* Примерно blue-100 to purple-200 */
   min-height: 100vh;
   display: flex;
-  justify-content: center;
+  justify-content: center; /* Центрирует содержимое body по горизонтали */
   align-items: flex-start; /* Выравнивание сверху */
   padding: 1rem;
   box-sizing: border-box;
@@ -24,10 +24,10 @@ body {
 .app-container {
   width: 100%;
   max-width: 960px; /* max-w-4xl */
-  padding: 1rem;
+  padding: 0; /* Убираем padding здесь, чтобы не смещать основной контент */
   display: flex;
   flex-direction: column;
-  align-items: center; /* Центрирует элементы по горизонтали */
+  align-items: center; /* Центрирует дочерние элементы по горизонтали */
 }
 
 .main-card, .auth-card {
@@ -36,7 +36,7 @@ body {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
   padding: 1.5rem; /* p-6 */
   margin-bottom: 2rem; /* mb-8 */
-  width: 100%;
+  width: 100%; /* Занимает всю доступную ширину родителя (app-container) */
   box-sizing: border-box; /* Важно для корректного расчета ширины с padding */
 }
 
@@ -258,10 +258,6 @@ body {
   border-radius: 0.5rem; /* rounded-lg */
   box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06); /* shadow-inner */
   box-sizing: border-box; /* Важно для корректного расчета ширины с padding */
-  /* Новые стили для центрирования формы */
-  max-width: 800px; /* Ограничиваем ширину формы */
-  margin-left: auto;
-  margin-right: auto;
 }
 
 @media (min-width: 768px) { /* md breakpoint */
@@ -299,6 +295,7 @@ body {
   border: 1px solid #d1d5db; /* border border-gray-300 */
   border-radius: 0.375rem; /* rounded-md */
   transition: all 150ms ease-in-out; /* transition duration-150 ease-in-out */
+  box-sizing: border-box; /* Чтобы padding не увеличивал ширину */
 }
 
 .form-input:focus, .form-textarea:focus {
@@ -380,109 +377,101 @@ body {
 
 /* Блок анализа */
 .analysis-result-box {
-  margin-top: 1rem;
-  padding: 1rem;
+  margin-top: 1rem; /* mt-4 */
+  padding: 1rem; /* p-4 */
   background-color: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.375rem;
-  color: #374151;
+  border: 1px solid #e5e7eb; /* border border-gray-200 */
+  border-radius: 0.375rem; /* rounded-md */
+  color: #374151; /* text-gray-700 */
   min-height: 100px;
-  display: block; /* Важно для корректного рендеринга Markdown */
-  text-align: left;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: pre-wrap; /* Сохраняет форматирование Markdown */
-  box-sizing: border-box;
-  width: 100%; /* Занимает всю доступную ширину */
+  display: block; /* Снова меняем на block для лучшей работы с markdown */
+  text-align: left; /* Выравнивание текста по левому краю */
+  word-wrap: break-word; /* Обеспечивает перенос длинных слов */
+  overflow-wrap: break-word; /* Альтернатива word-wrap для лучшей совместимости */
+  white-space: pre-wrap; /* Сохраняет пробелы и переносы строк из Markdown */
+  box-sizing: border-box; /* Включает padding и border в общую ширину */
 }
 
 .analysis-text {
-  width: 100%; /* Markdown контент занимает всю ширину контейнера */
-  box-sizing: border-box;
+  width: 100%; /* Гарантирует, что содержимое Markdown занимает всю ширину контейнера */
+  box-sizing: border-box; /* Важно для markdown-контента */
   white-space: pre-wrap; /* Для сохранения переносов строк из LLM */
-  line-height: 1.6; /* Улучшение читаемости */
+  line-height: 1.6; /* Улучшение читаемости междустрочным интервалом */
 }
 
+/* Стилизация заголовков внутри блока анализа */
 .analysis-text h1, .analysis-text h2, .analysis-text h3, .analysis-text h4, .analysis-text h5, .analysis-text h6 {
-  margin-top: 1.5em;
-  margin-bottom: 0.8em;
-  color: #4f46e5;
-  word-break: break-word; /* Добавлено для заголовков */
-  overflow-wrap: break-word; /* Добавлено для заголовков */
+  margin-top: 1.5em; /* Отступ сверху для заголовков */
+  margin-bottom: 0.8em; /* Отступ снизу для заголовков */
+  color: #4f46e5; /* Соответствует цвету заголовков в приложении */
 }
 
-.analysis-text p {
-  margin-bottom: 1em;
-  word-break: break-word; /* Добавлено для абзацев */
-  overflow-wrap: break-word; /* Добавлено для абзацев */
-}
-
+/* Стилизация списков внутри блока анализа */
 .analysis-text ul, .analysis-text ol {
-  margin-left: 1.5rem;
-  margin-bottom: 1em;
-  word-break: break-word; /* Добавлено для списков */
-  overflow-wrap: break-word; /* Добавлено для списков */
+  margin-left: 1.5rem; /* Отступ слева для списков */
+  margin-bottom: 1em; /* Отступ снизу для списков */
 }
 
 .analysis-text li {
-  margin-bottom: 0.5em;
+  margin-bottom: 0.5em; /* Отступ снизу для элементов списка */
 }
 
 .analysis-text strong {
-  font-weight: 700;
+  font-weight: 700; /* Жирный шрифт для выделения */
 }
 
 .placeholder-text {
-  color: #6b7280;
-  text-align: center;
-  width: 100%;
+  color: #6b7280; /* text-gray-500 */
+  text-align: center; /* Центрирование плейсхолдера */
+  width: 100%; /* Чтобы плейсхолдер занимал всю ширину */
+  padding: 1rem; /* Добавляем padding, чтобы плейсхолдер не прилипал к краям */
 }
 
 /* Модальное окно подтверждения */
 .modal-overlay {
   position: fixed;
-  inset: 0;
-  background-color: rgba(107, 114, 128, 0.5);
+  inset: 0; /* top:0, right:0, bottom:0, left:0 */
+  background-color: rgba(107, 114, 128, 0.5); /* bg-gray-600 bg-opacity-50 */
   overflow-y: auto;
   height: 100%;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1000; /* Чтобы было поверх всего */
 }
 
 .modal-content {
   background-color: #ffffff;
-  padding: 2rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-  max-width: 448px;
+  padding: 2rem; /* p-8 */
+  border-radius: 0.5rem; /* rounded-lg */
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05); /* shadow-xl */
+  max-width: 448px; /* max-w-sm */
   margin-left: auto;
   margin-right: auto;
 }
 
 .modal-header {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #111827;
-  margin-bottom: 1rem;
+  font-size: 1.125rem; /* text-lg */
+  font-weight: 700; /* font-bold */
+  color: #111827; /* text-gray-900 */
+  margin-bottom: 1rem; /* mb-4 */
 }
 
 .modal-message {
-  color: #374151;
-  margin-bottom: 1.5rem;
+  color: #374151; /* text-gray-700 */
+  margin-bottom: 1.5rem; /* mb-6 */
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 1rem;
+  gap: 1rem; /* gap-4 */
 }
 
-/* Переключатель Public/Private Data (если понадобится) */
+/* Переключатель Public/Private Data */
 .data-toggle-container {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.5rem; /* mb-6 */
   display: flex;
   justify-content: center;
 }
@@ -494,15 +483,15 @@ body {
 }
 
 .data-toggle-text {
-  margin: 0 0.75rem;
-  color: #374151;
-  font-weight: 500;
+  margin: 0 0.75rem; /* mr-3, ml-3 */
+  color: #374151; /* text-gray-700 */
+  font-weight: 500; /* font-medium */
 }
 
 .toggle-switch {
   position: relative;
-  width: 3.5rem;
-  height: 2rem;
+  width: 3.5rem; /* w-14 */
+  height: 2rem; /* h-8 */
 }
 
 .toggle-input {
@@ -519,52 +508,52 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #d1d5db;
-  border-radius: 2rem;
+  background-color: #d1d5db; /* bg-gray-300 */
+  border-radius: 2rem; /* rounded-full */
   transition: background-color 0.3s;
 }
 
 .toggle-slider:before {
   position: absolute;
   content: "";
-  height: 1.5rem;
-  width: 1.5rem;
-  left: 0.25rem;
-  bottom: 0.25rem;
+  height: 1.5rem; /* h-6 */
+  width: 1.5rem; /* w-6 */
+  left: 0.25rem; /* left-1 */
+  bottom: 0.25rem; /* top-1 */
   background-color: white;
   border-radius: 50%;
   transition: transform 0.3s;
 }
 
 .toggle-input:checked + .toggle-slider {
-  background-color: #4f46e5;
+  background-color: #4f46e5; /* bg-indigo-600 */
 }
 
 .toggle-input:checked + .toggle-slider:before {
-  transform: translateX(1.5rem);
+  transform: translateX(1.5rem); /* translateX(100%) */
 }
 
 /* Input Mode Toggle */
 .input-mode-toggle-container {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.5rem; /* mb-6 */
   display: flex;
   justify-content: center;
-  gap: 1rem;
+  gap: 1rem; /* gap-4 */
 }
 
 /* Стили для мобильных устройств (адаптивность) */
 @media (max-width: 767px) {
   .btn-submit, .btn-cancel {
-    max-width: 100%;
+    max-width: 100%; /* На мобильных занимают всю ширину */
   }
   .form-actions {
-    flex-direction: column;
+    flex-direction: column; /* Кнопки в столбик */
     align-items: center;
   }
 }
 
 /* Дополнительные стили для кнопки экспорта */
 .export-controls {
-    margin-top: 1.5rem;
+    margin-top: 1.5rem; /* Отступ сверху */
     text-align: center;
 }

@@ -7,6 +7,9 @@ import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, d
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'; // Для поддержки таблиц, зачеркнутого текста и т.д.
 
+// ВНИМАНИЕ: Импорт './index.css' должен быть только в файле main.jsx, а не здесь.
+// Если вы видите эту строку в App.jsx, пожалуйста, удалите ее.
+
 function App() {
     const [db, setDb] = useState(null);
     const [auth, setAuth] = useState(null);
@@ -15,26 +18,33 @@ function App() {
     const [productName, setProductName] = useState('');
     const [storeName, setStoreName] = useState('');
     const [price, setPrice] = useState('');
-    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]); // Default to today's date (YYYY-MM-DD)
     const [quantity, setQuantity] = useState('');
     const [unit, setUnit] = useState('');
-    const [category, setCategory] = useState('');
-    const [editingProductId, setEditingProductId] = useState(null);
+    const [category, setCategory] = useState(''); // New state for category
+    const [editingProductId, setEditingProductId] = useState(null); // State to track which product is being edited
 
     const [filterProduct, setFilterProduct] = useState('');
     const [filterStore, setFilterStore] = useState('');
-    const [filterCategory, setFilterCategory] = useState('');
+    const [filterCategory, setFilterCategory] = useState(''); // New state for category filter
     const [analysisResult, setAnalysisResult] = useState('');
     const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
     const [message, setMessage] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [productToDelete, setProductToDelete] = useState(null);
 
+    // Authentication states
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
+    // Input mode state: 'single' or 'bulk'
     const [inputMode, setInputMode] = useState('single');
     const [bulkInputText, setBulkInputText] = useState('');
+
+    // New states for custom analysis
+    const [customAnalysisPrompt, setCustomAnalysisPrompt] = useState('');
+    const [customAnalysisResult, setCustomAnalysisResult] = useState('');
+    const [isLoadingCustomAnalysis, setIsLoadingCustomAnalysis] = useState(false);
 
     // Firebase Configuration (REPLACE THESE WITH YOUR ACTUAL FIREBASE CONFIG)
     const firebaseConfig = {
@@ -47,11 +57,12 @@ function App() {
   measurementId: "G-Y7FKBRTGCX"
 };
 
-    const appId = firebaseConfig.projectId;
+    const appId = firebaseConfig.projectId; // Using projectId as appId for Firestore paths
 
     // УНИКАЛЬНЫЙ ИДЕНТИФИКАТОР ДЛЯ ВАШЕЙ СЕМЬИ. ЗАМЕНИТЕ НА СВОЙ!
     const FAMILY_SHARED_LIST_ID = "my-family-prices-2025"; 
 
+    // Initialize Firebase and set up authentication
     useEffect(() => {
         try {
             if (firebaseConfig.apiKey === "YOUR_API_KEY") {
@@ -76,13 +87,14 @@ function App() {
                 }
             });
 
-            return () => unsubscribe();
+            return () => unsubscribe(); // Cleanup auth listener
         } catch (error) {
             console.error("Ошибка инициализации Firebase:", error);
             setMessage(`Ошибка инициализации приложения: ${error.message}`);
         }
     }, [firebaseConfig]);
 
+    // Fetch products from Firestore when db and userId are available
     useEffect(() => {
         if (!db || !userId) {
             setProducts([]);
@@ -173,7 +185,7 @@ function App() {
             return;
         }
         if (!db || !userId) {
-            setMessage('База данных не готова или вы не вошли в систему.');
+            setMessage('База данных не готова или или вы не вошли в систему.');
             return;
         }
 
@@ -305,8 +317,7 @@ function App() {
         **Избегай использования таблиц и блоков кода, если это не явно необходимо.**
         Предпочтение отдавай заголовкам (например, ## Обзор цен, ### По продуктам, ### По магазинам), жирному тексту для выделения ключевых выводов и маркированным/нумерованным спискам для обобщения информации.
         Разбей информацию на логические секции с подзаголовками, чтобы текст легко читался.
-        Убедись, что текст полностью помещается в окно и не выходит за его пределы, используя перенос строк, где это необходимо. Сделай анализ более кратким и четким, без лишних деталей, сосредоточься на основных выводах и ключевых тенденциях.
-        Выделяй важные моменты **жирным шрифтом**.
+        Сделай анализ максимально кратким и четким, без лишних деталей и вводных фраз. Сосредоточься только на основных выводах и рекомендациях. Убедись, что текст полностью помещается в окно, используя перенос строк, где это необходимо, и не содержит очень длинных слов без пробелов.
 
         Данные: ${JSON.stringify(dataForLLM)}`;
 
@@ -341,6 +352,75 @@ function App() {
             setIsLoadingAnalysis(false);
         }
     }, [filteredProducts]);
+
+    const handleCustomAnalysis = useCallback(async () => {
+        if (!customAnalysisPrompt.trim()) {
+            setCustomAnalysisResult('Пожалуйста, введите ваш запрос для анализа.');
+            return;
+        }
+        if (!filteredProducts.length) {
+            setCustomAnalysisResult('Нет данных для анализа. Добавьте хотя бы один продукт.');
+            return;
+        }
+
+        setIsLoadingCustomAnalysis(true);
+        setCustomAnalysisResult('Генерирую пользовательский анализ...');
+
+        const dataForLLM = filteredProducts.map(({ productName, storeName, price, date, quantity, unit, category }) => {
+            const pricePerUnit = (quantity && quantity > 0) ? (price / quantity).toFixed(2) : 'N/A';
+            return {
+                productName,
+                storeName,
+                price,
+                date,
+                quantity: quantity !== null ? quantity : 'N/A',
+                unit: unit !== null ? unit : 'N/A',
+                category: category !== null ? category : 'N/A',
+                pricePerUnit: pricePerUnit !== 'N/A' ? `${pricePerUnit} €/${unit}` : 'N/A'
+            };
+        });
+
+        const prompt = `На основе следующих данных о ценах на продукты, выполни пользовательский запрос: "${customAnalysisPrompt}".
+        Учти, что некоторые продукты могут быть весовыми (есть поля 'quantity' и 'unit', а также 'pricePerUnit' - цена за единицу), и имеют категорию ('category'). Валюта - евро (€).
+        Представь анализ в виде хорошо структурированного текста, используя **Markdown** для улучшения читаемости.
+        **Избегай использования таблиц и блоков кода, если это не явно необходимо.**
+        Предпочтение отдавай заголовкам, жирному тексту для выделения ключевых выводов и маркированным/нумерованным спискам для обобщения информации.
+        Разбей информацию на логические секции с подзаголовками, чтобы текст легко читался.
+        Сделай анализ максимально кратким и четким, без лишних деталей и вводных фраз. Сосредоточься только на основных выводах и рекомендациях. Убедись, что текст полностью помещается в окно, используя перенос строк, где это необходимо, и не содержит очень длинных слов без пробелов.
+
+        Данные: ${JSON.stringify(dataForLLM)}`;
+
+        try {
+            const chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = "ВАШ_СКОПИРОВАННЫЙ_КЛЮЧ_GEMINI";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (result.candidates && result.candidates.length > 0 &&
+                result.candidates[0].content && result.candidates[0].content.parts &&
+                result.candidates[0].content.parts.length > 0) {
+                const text = result.candidates[0].content.parts[0].text;
+                setCustomAnalysisResult(text);
+            } else {
+                setCustomAnalysisResult('Не удалось получить анализ. Попробуйте еще раз.');
+                console.error("Unexpected LLM response structure:", result);
+            }
+        } catch (error) {
+            console.error("Ошибка при вызове LLM:", error);
+            setCustomAnalysisResult(`Ошибка при получении анализа: ${error.message}`);
+        } finally {
+            setIsLoadingCustomAnalysis(false);
+        }
+    }, [customAnalysisPrompt, filteredProducts]);
 
     const handleExportCsv = () => {
         if (filteredProducts.length === 0) {
@@ -766,14 +846,15 @@ function App() {
                     </div>
                 </div>
 
+                {/* Общий анализ цен */}
                 <div className="section-card">
-                    <h2 className="section-header">Анализ цен</h2>
+                    <h2 className="section-header">Общий анализ цен</h2>
                     <button
                         onClick={analyzePrices}
                         disabled={isLoadingAnalysis || filteredProducts.length === 0}
                         className={`btn btn-primary btn-full-width ${isLoadingAnalysis || filteredProducts.length === 0 ? 'disabled' : ''}`}
                     >
-                        {isLoadingAnalysis ? 'Анализирую...' : 'Получить анализ цен'}
+                        {isLoadingAnalysis ? 'Анализирую...' : 'Получить общий анализ цен'}
                     </button>
                     <div className="analysis-result-box">
                         {analysisResult ? (
@@ -781,7 +862,39 @@ function App() {
                                 {analysisResult}
                             </ReactMarkdown>
                         ) : (
-                            <p className="placeholder-text">Нажмите "Получить анализ цен", чтобы сгенерировать отчет.</p>
+                            <p className="placeholder-text">Нажмите "Получить общий анализ цен", чтобы сгенерировать отчет.</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Свободный запрос к Gemini */}
+                <div className="section-card">
+                    <h2 className="section-header">Пользовательский анализ (свободный запрос)</h2>
+                    <p className="help-text">
+                        Введите ваш запрос для анализа (например, "Какие продукты из категории 'Молочные продукты' самые дорогие?", "Сравните цены на 'Хлеб' в разных магазинах", "Какие продукты я покупал в 'Пятерочке' за последний месяц?").
+                        Анализ будет выполнен на основе текущих отфильтрованных данных.
+                    </p>
+                    <textarea
+                        className="form-textarea"
+                        placeholder="Введите ваш запрос к Gemini здесь..."
+                        value={customAnalysisPrompt}
+                        onChange={(e) => setCustomAnalysisPrompt(e.target.value)}
+                        rows="4"
+                    ></textarea>
+                    <button
+                        onClick={handleCustomAnalysis}
+                        disabled={isLoadingCustomAnalysis || !customAnalysisPrompt.trim() || filteredProducts.length === 0}
+                        className={`btn btn-primary btn-full-width mt-4 ${isLoadingCustomAnalysis || !customAnalysisPrompt.trim() || filteredProducts.length === 0 ? 'disabled' : ''}`}
+                    >
+                        {isLoadingCustomAnalysis ? 'Выполняю запрос...' : 'Получить пользовательский анализ'}
+                    </button>
+                    <div className="analysis-result-box mt-4">
+                        {customAnalysisResult ? (
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="analysis-text">
+                                {customAnalysisResult}
+                            </ReactMarkdown>
+                        ) : (
+                            <p className="placeholder-text">Результат пользовательского анализа появится здесь.</p>
                         )}
                     </div>
                 </div>
