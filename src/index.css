@@ -557,3 +557,20 @@ body {
     margin-top: 1.5rem; /* Отступ сверху */
     text-align: center;
 }
+
+/* Specific styles for the custom analysis section to ensure visibility */
+.custom-analysis-section {
+  border: 2px dashed #a78bfa; /* Видимая граница для секции */
+  background-color: #f3e8ff; /* Светло-фиолетовый фон для секции */
+}
+
+.custom-analysis-textarea {
+  background-color: #ffffff; /* Белый фон для текстового поля */
+  border: 1px solid #6366f1; /* Фиолетовая граница для текстового поля */
+}
+
+.custom-analysis-result-box {
+  min-height: 150px; /* Увеличиваем минимальную высоту для лучшей заметности */
+  background-color: #e0f2fe; /* Светло-голубой фон для результатов анализа */
+  border: 1px solid #93c5fd; /* Голубая граница */
+}

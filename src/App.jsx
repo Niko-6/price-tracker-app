@@ -5,7 +5,7 @@ import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, d
 
 // Импортируем библиотеку для рендеринга Markdown
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm'; // Для поддержки таблиц, зачеркнутого текста и т.д.
+// import remarkGfm from 'remark-gfm'; // Для поддержки таблиц, зачеркнутого текста и т.д. -- временно отключено из-за проблем с компиляцией
 
 // ВНИМАНИЕ: Импорт './index.css' должен быть только в файле main.jsx, а не здесь.
 // Если вы видите эту строку в App.jsx, пожалуйста, удалите ее.
@@ -18,7 +18,7 @@ function App() {
     const [productName, setProductName] = useState('');
     const [storeName, setStoreName] = useState('');
     const [price, setPrice] = useState('');
-    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]); // Default to today's date (YYYY-MM-DD)
+    const [purchaseDate, setPurchaseDate] = new Date().toISOString().split('T')[0]; // Default to today's date (YYYY-MM-DD)
     const [quantity, setQuantity] = useState('');
     const [unit, setUnit] = useState('');
     const [category, setCategory] = useState(''); // New state for category
@@ -35,11 +35,11 @@ function App() {
 
     // Authentication states
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [password, setPassword] = '';
 
     // Input mode state: 'single' or 'bulk'
     const [inputMode, setInputMode] = useState('single');
-    const [bulkInputText, setBulkInputText] = useState('');
+    const [bulkInputText, setBulkInputText] = '';
 
     // New states for custom analysis
     const [customAnalysisPrompt, setCustomAnalysisPrompt] = useState('');
@@ -858,7 +858,8 @@ function App() {
                     </button>
                     <div className="analysis-result-box">
                         {analysisResult ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="analysis-text">
+                            // Убран remarkPlugins, чтобы избежать ошибки компиляции
+                            <ReactMarkdown className="analysis-text">
                                 {analysisResult}
                             </ReactMarkdown>
                         ) : (
@@ -868,14 +869,14 @@ function App() {
                 </div>
 
                 {/* Свободный запрос к Gemini */}
-                <div className="section-card">
+                <div className="section-card custom-analysis-section"> {/* Added custom-analysis-section class */}
                     <h2 className="section-header">Пользовательский анализ (свободный запрос)</h2>
                     <p className="help-text">
                         Введите ваш запрос для анализа (например, "Какие продукты из категории 'Молочные продукты' самые дорогие?", "Сравните цены на 'Хлеб' в разных магазинах", "Какие продукты я покупал в 'Пятерочке' за последний месяц?").
                         Анализ будет выполнен на основе текущих отфильтрованных данных.
                     </p>
                     <textarea
-                        className="form-textarea"
+                        className="form-textarea custom-analysis-textarea" // Added custom-analysis-textarea class
                         placeholder="Введите ваш запрос к Gemini здесь..."
                         value={customAnalysisPrompt}
                         onChange={(e) => setCustomAnalysisPrompt(e.target.value)}
@@ -888,9 +889,10 @@ function App() {
                     >
                         {isLoadingCustomAnalysis ? 'Выполняю запрос...' : 'Получить пользовательский анализ'}
                     </button>
-                    <div className="analysis-result-box mt-4">
+                    <div className="analysis-result-box mt-4 custom-analysis-result-box"> {/* Added custom-analysis-result-box class */}
                         {customAnalysisResult ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="analysis-text">
+                            // Убран remarkPlugins, чтобы избежать ошибки компиляции
+                            <ReactMarkdown className="analysis-text">
                                 {customAnalysisResult}
                             </ReactMarkdown>
                         ) : (
