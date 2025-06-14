@@ -8,7 +8,6 @@ import ReactMarkdown from 'react-markdown';
 // import remarkGfm from 'remark-gfm'; // Для поддержки таблиц, зачеркнутого текста и т.д. -- временно отключено из-за проблем с компиляцией
 
 // ВНИМАНИЕ: Импорт './index.css' должен быть только в файле main.jsx, а не здесь.
-// Если вы видите эту строку в App.jsx, пожалуйста, удалите ее.
 
 function App() {
     const [db, setDb] = useState(null);
@@ -46,30 +45,25 @@ function App() {
     const [customAnalysisResult, setCustomAnalysisResult] = useState('');
     const [isLoadingCustomAnalysis, setIsLoadingCustomAnalysis] = useState(false);
 
-    // Firebase Configuration (REPLACE THESE WITH YOUR ACTUAL FIREBASE CONFIG)
+    // Firebase Configuration (вставлены ваши данные)
     const firebaseConfig = {
-  apiKey: "AIzaSyB0FBsdn8XEV1il35TSidXwS94_dRaoxKQ",
-  authDomain: "pricetrackerapp-28d82.firebaseapp.com",
-  projectId: "pricetrackerapp-28d82",
-  storageBucket: "pricetrackerapp-28d82.firebasestorage.app",
-  messagingSenderId: "991111446060",
-  appId: "1:991111446060:web:f365131aeca30958175b89",
-  measurementId: "G-Y7FKBRTGCX"
-};
+        apiKey: "AIzaSyB0FBsdn8XEV1il35TSidXwS94_dRaoxKQ",
+        authDomain: "pricetrackerapp-28d82.firebaseapp.com",
+        projectId: "pricetrackerapp-28d82",
+        storageBucket: "pricetrackerapp-28d82.firebasestorage.app",
+        messagingSenderId: "991111446060",
+        appId: "1:991111446060:web:f365131aeca30958175b89",
+        measurementId: "G-Y7FKBRTGCX"
+    };
 
     const appId = firebaseConfig.projectId; // Using projectId as appId for Firestore paths
 
-    // УНИКАЛЬНЫЙ ИДЕНТИФИКАТОР ДЛЯ ВАШЕЙ СЕМЬИ. ЗАМЕНИТЕ НА СВОЙ!
+    // УНИКАЛЬНЫЙ ИДЕНТИФИКАТОР ДЛЯ ВАШЕЙ СЕМЬИ (вставлены ваши данные)
     const FAMILY_SHARED_LIST_ID = "my-family-prices-2025"; 
 
     // Initialize Firebase and set up authentication
     useEffect(() => {
         try {
-            if (firebaseConfig.apiKey === "YOUR_API_KEY") {
-                setMessage("Пожалуйста, замените заглушки конфигурации Firebase на ваши реальные данные.");
-                return;
-            }
-
             const app = initializeApp(firebaseConfig);
             const firestore = getFirestore(app);
             const firebaseAuth = getAuth(app);
@@ -80,7 +74,14 @@ function App() {
             const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
                 if (user) {
                     setUserId(user.uid);
-                    setMessage(`Пользователь ${user.email} вошел в систему.`);
+                    // Дополнительная проверка для отображения имени пользователя
+                    let userName = 'N/A';
+                    if (user.uid === '1hX24x7AXTbWODNw8WihKPKgQwn2') {
+                        userName = 'Egor';
+                    } else if (user.uid === 'Wn1vmgdLWNYeByWp6a6ZrhYDxfk1') {
+                        userName = 'Nino';
+                    }
+                    setMessage(`Пользователь ${userName} (${user.email}) вошел в систему.`);
                 } else {
                     setUserId(null);
                     setMessage("Пожалуйста, войдите или зарегистрируйтесь.");
@@ -185,17 +186,21 @@ function App() {
             return;
         }
         if (!db || !userId) {
-            setMessage('База данных не готова или или вы не вошли в систему.');
+            setMessage('База данных не готова или вы не вошли в систему.');
             return;
         }
 
-        const lines = bulkInputText.trim().split('\n');
+        const lines = bulkInputText.trim().split('\n').filter(line => line.trim() !== ''); // Filter out empty lines
         const productsToAdd = [];
         let errorCount = 0;
 
+        console.log("Starting bulk upload processing...");
         for (const line of lines) {
+            console.log("Processing bulk line:", line);
             const parts = line.split(',').map(part => part.trim());
-            if (parts.length >= 4) {
+            
+            // Expected format: Дата (ГГГГ-ММ-ДД),Название продукта,Магазин,Цена,Количество (необязательно),Единица измерения (необязательно),Категория (необязательно)
+            if (parts.length >= 4) { // Minimum 4 parts required: date, name, store, price
                 const [dateStr, pName, sName, pPriceStr, pQuantityStr, pUnit, pCategory] = parts;
                 const parsedPrice = parseFloat(pPriceStr);
                 const parsedQuantity = pQuantityStr ? parseFloat(pQuantityStr) : null;
@@ -211,18 +216,20 @@ function App() {
                         unit: pUnit || null,
                         category: pCategory || null,
                     });
+                    console.log("Successfully parsed product for bulk add:", { pName, sName, parsedPrice, date: dateStr, quantity: parsedQuantity, unit: pUnit, category: pCategory });
                 } else {
                     errorCount++;
-                    console.warn(`Некорректная строка данных: ${line}`);
+                    console.warn(`Некорректная строка данных (цена или дата недействительны): "${line}"`);
                 }
             } else {
                 errorCount++;
-                console.warn(`Недостаточно данных в строке: ${line}`);
+                console.warn(`Недостаточно данных в строке (минимум 4 поля): "${line}"`);
             }
         }
 
         if (productsToAdd.length === 0) {
             setMessage(`Не удалось добавить ни одного продукта. Проверьте формат данных. Ошибок в строках: ${errorCount}`);
+            console.log("No products to add after parsing. Total errors:", errorCount);
             return;
         }
 
@@ -233,6 +240,7 @@ function App() {
             await Promise.all(addPromises);
 
             setMessage(`Успешно добавлено ${productsToAdd.length} продуктов. Ошибок в строках: ${errorCount}`);
+            console.log(`Successfully added ${productsToAdd.length} products in bulk. Total errors: ${errorCount}`);
             setBulkInputText('');
         } catch (error) {
             console.error("Ошибка массового добавления продуктов:", error);
@@ -248,8 +256,22 @@ function App() {
         setQuantity(product.quantity || '');
         setUnit(product.unit || '');
         setCategory(product.category || '');
-        const [day, month, year] = product.date.split('.');
-        setPurchaseDate(`${year}-${month}-${day}`);
+        
+        // Ensure purchaseDate is in YYYY-MM-DD format for the input[type="date"]
+        const originalDate = product.originalTimestamp;
+        let formattedDate = new Date().toISOString().split('T')[0]; // Default to today's date
+        if (originalDate instanceof Date && !isNaN(originalDate.getTime())) {
+            formattedDate = originalDate.toISOString().split('T')[0];
+        } else if (typeof product.date === 'string') {
+            // Attempt to parse if date is a string (e.g., from Firestore before it's converted to Timestamp)
+            const dateParts = product.date.split('.'); // Assuming DD.MM.YYYY format from displayDate
+            if (dateParts.length === 3) {
+                formattedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
+                console.log("Parsed string date for edit:", formattedDate); // Debugging date
+            }
+        }
+        setPurchaseDate(formattedDate);
+        console.log("Setting purchase date for edit:", formattedDate); // Debugging date
         setInputMode('single');
     };
 
@@ -288,14 +310,15 @@ function App() {
     const uniqueProductNames = Array.from(new Set(products.map(p => p.productName))).sort();
     const uniqueCategories = Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort();
 
-    const fetchAnalysisFromGemini = async (currentPrompt, setLoading, setResult) => {
+    const fetchAnalysisFromGemini = useCallback(async (currentPrompt, setLoading, setResult) => {
         if (!filteredProducts.length) {
             setResult('Нет данных для анализа. Добавьте хотя бы один продукт.');
+            setLoading(false); // Убедитесь, что индикатор загрузки отключается
             return;
         }
 
         setLoading(true);
-        setResult('Генерирую анализ...');
+        setResult('Генерирую анализ...'); // Начальное сообщение
 
         const dataForLLM = filteredProducts.map(({ productName, storeName, price, date, quantity, unit, category }) => {
             const pricePerUnit = (quantity && quantity > 0) ? (price / quantity).toFixed(2) : 'N/A';
@@ -319,12 +342,16 @@ function App() {
             const chatHistory = [];
             chatHistory.push({ role: "user", parts: [{ text: fullPrompt }] });
             const payload = { contents: chatHistory };
-            const apiKey = "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo"; // <-- Убедитесь, что это ваш реальный API-ключ Gemini
+            // API Key Gemini (вставлен ваш ключ)
+            const apiKey = "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo"; 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
             // Проверка API ключа перед отправкой запроса
-            if (apiKey === "AIzaSyAtuLaWD8b6ZBcqtmmNG14NDoGXARcEzGo" || !apiKey) {
-                setResult('Ошибка: API-ключ Gemini не установлен. Пожалуйста, замените "ВАШ_СКОПИРОВАННЫЙ_КЛЮЧ_GEMINI" на ваш реальный ключ.');
+            if (!apiKey || apiKey.length < 10) { 
+                const errorMsg = 'Ошибка: API-ключ Gemini не установлен или недействителен. Пожалуйста, убедитесь, что ключ вставлен корректно.';
+                setResult(errorMsg);
+                setLoading(false);
+                console.error(errorMsg);
                 return;
             }
 
@@ -337,29 +364,31 @@ function App() {
 
             if (!response.ok) {
                 const errorData = await response.json();
+                const errorMessage = errorData.error?.message || response.statusText || 'Неизвестная ошибка.';
                 console.error("Gemini API Error Response:", errorData);
-                setResult(`Ошибка API Gemini: ${errorData.error?.message || response.statusText}. Проверьте ваш API-ключ и данные.`);
+                setResult(`Ошибка API Gemini: ${errorMessage}. Проверьте ваш API-ключ, сетевое подключение и квоты.`);
+                setLoading(false);
                 return;
             }
 
-            const result = await response.json();
+            const resultData = await response.json();
 
-            if (result.candidates && result.candidates.length > 0 &&
-                result.candidates[0].content && result.candidates[0].content.parts &&
-                result.candidates[0].content.parts.length > 0) {
-                const text = result.candidates[0].content.parts[0].text;
+            if (resultData.candidates && resultData.candidates.length > 0 &&
+                resultData.candidates[0].content && resultData.candidates[0].content.parts &&
+                resultData.candidates[0].content.parts.length > 0) {
+                const text = resultData.candidates[0].content.parts[0].text;
                 setResult(text);
             } else {
                 setResult('Не удалось получить анализ. Ответ Gemini был неожиданным или пустым. Проверьте консоль для получения подробностей.');
-                console.error("Unexpected LLM response structure:", result);
+                console.error("Unexpected LLM response structure:", resultData);
             }
         } catch (error) {
-            console.error("Ошибка при вызове LLM:", error);
+            console.error("Ошибка при вызове LLM (fetch error):", error);
             setResult(`Ошибка при получении анализа: ${error.message}. Возможно, проблемы с сетью или неверный API-ключ.`);
         } finally {
             setLoading(false);
         }
-    };
+    }, [filteredProducts]);
 
     const analyzePrices = useCallback(() => {
         const defaultPrompt = `Проанализируй следующие данные о ценах на продукты. Учти, что некоторые продукты могут быть весовыми (есть поля 'quantity' и 'unit', а также 'pricePerUnit' - цена за единицу), и имеют категорию ('category'). Валюта - евро (€).
@@ -370,9 +399,14 @@ function App() {
         Разбей информацию на логические секции с подзаголовками, чтобы текст легко читался.
         Сделай анализ максимально кратким и четким, без лишних деталей и вводных фраз. Сосредоточься только на основных выводах и рекомендациях. Убедись, что текст полностью помещается в окно, используя перенос строк, где это необходимо, и не содержит очень длинных слов без пробелов.`;
         fetchAnalysisFromGemini(defaultPrompt, setIsLoadingAnalysis, setAnalysisResult);
-    }, [filteredProducts, fetchAnalysisFromGemini]); // Добавили fetchAnalysisFromGemini в зависимости
+    }, [filteredProducts, fetchAnalysisFromGemini]);
 
     const handleCustomAnalysis = useCallback(() => {
+        if (!customAnalysisPrompt.trim()) {
+            setCustomAnalysisResult('Пожалуйста, введите ваш запрос для анализа.');
+            return;
+        }
+
         const customPromptPrefix = `На основе следующих данных о ценах на продукты, выполни пользовательский запрос: "${customAnalysisPrompt}".
         Учти, что некоторые продукты могут быть весовыми (есть поля 'quantity' и 'unit', а также 'pricePerUnit' - цена за единицу), и имеют категорию ('category'). Валюта - евро (€).
         Представь анализ в виде хорошо структурированного текста.
@@ -381,7 +415,7 @@ function App() {
         Разбей информацию на логические секции с подзаголовками, чтобы текст легко читался.
         Сделай анализ максимально кратким и четким, без лишних деталей и вводных фраз. Сосредоточься только на основных выводах и рекомендациях. Убедись, что текст полностью помещается в окно, используя перенос строк, где это необходимо, и не содержит очень длинных слов без пробелов.`;
         fetchAnalysisFromGemini(customPromptPrefix, setIsLoadingCustomAnalysis, setCustomAnalysisResult);
-    }, [customAnalysisPrompt, filteredProducts, fetchAnalysisFromGemini]); // Добавили fetchAnalysisFromGemini в зависимости
+    }, [customAnalysisPrompt, filteredProducts, fetchAnalysisFromGemini]);
 
     const handleExportCsv = () => {
         if (filteredProducts.length === 0) {
@@ -521,7 +555,11 @@ function App() {
                 </h1>
                 <div className="header-controls">
                     <p className="user-info">
-                        Вы вошли как: <span className="user-email">{auth?.currentUser?.email || 'N/A'}</span>
+                        Вы вошли как: {
+                        userId === '1hX24x7AXTbWODNw8WihKPKgQwn2' ? 'Egor' : 
+                        userId === 'Wn1vmgdLWNYeByWp6a6ZrhYDxfk1' ? 'Nino' : 
+                        auth?.currentUser?.email || 'N/A'
+                        }
                     </p>
                     <button
                         onClick={handleLogout}
@@ -564,7 +602,10 @@ function App() {
                                     type="date"
                                     id="purchaseDate"
                                     value={purchaseDate}
-                                    onChange={(e) => setPurchaseDate(e.target.value)}
+                                    onChange={(e) => {
+                                        setPurchaseDate(e.target.value);
+                                        console.log("Date input changed to:", e.target.value); // Debugging date input
+                                    }}
                                     className="form-input"
                                 />
                             </div>
@@ -684,6 +725,7 @@ function App() {
                             placeholder="Введите список покупок здесь..."
                             value={bulkInputText}
                             onChange={(e) => setBulkInputText(e.target.value)}
+                            rows="10" // Увеличил высоту для удобства
                         ></textarea>
                         <button
                             type="submit"
